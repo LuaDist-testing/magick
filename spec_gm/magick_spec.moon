@@ -57,3 +57,36 @@ describe "magick", ->
       assert img\resize_and_crop 500,1000
       assert img\write out_path "resize_and_crop.png"
 
+    it "blur", ->
+      assert img\blur 3, 10
+      assert img\write out_path "blur.png"
+
+    it "scale", ->
+      assert img\scale 80
+      assert img\write out_path "scale.png"
+
+    it "composite", ->
+      img2 = img\clone!
+      assert img2\resize 32
+      assert img\composite img2, 10, 20
+      assert img\write out_path "composite.png"
+
+    it "modulate", ->
+      img2 = img\clone!
+      assert img\modulate 50, 50, 50
+      assert img\write out_path "modulate.png"
+
+    it "gets format", ->
+      assert.same "png", img\get_format!
+
+    it "sets format", ->
+      img2 = img\clone!
+      img2\set_format "bmp"
+      assert.same "bmp", img2\get_format!
+      assert img\write out_path "b.bmp"
+
+    it "repage", ->
+      img2 = img\clone!
+      img2\crop 10, 10, 10, 10
+      img2\reset_page!
+

@@ -29,6 +29,17 @@ do
     get_height = function(self)
       return tonumber(lib.MagickGetImageHeight(self.wand))
     end,
+    get_format = function(self)
+      local format = lib.MagickGetImageFormat(self.wand)
+      do
+        local _with_0 = ffi.string(format):lower()
+        lib.MagickRelinquishMemory(format)
+        return _with_0
+      end
+    end,
+    set_format = function(self, format)
+      return handle_result(self, lib.MagickSetImageFormat(self.wand, format))
+    end,
     clone = function(self)
       local wand = ffi.gc(lib.CloneMagickWand(self.wand), lib.DestroyMagickWand)
       return Image(wand, self.path)
@@ -92,6 +103,9 @@ do
       local len = ffi.new("size_t[1]", 0)
       local blob = ffi.gc(lib.MagickWriteImageBlob(self.wand, len), lib.MagickRelinquishMemory)
       return ffi.string(blob, len[0])
+    end,
+    reset_page = function(self)
+      return lib.MagickSetImagePage(self.wand, self:get_width(), self:get_height(), 0, 0)
     end,
     __tostring = function(self)
       return "GMImage<" .. tostring(self.path) .. ", " .. tostring(self.wand) .. ">"

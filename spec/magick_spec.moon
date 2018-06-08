@@ -97,6 +97,16 @@ describe "magick", ->
       assert img\composite img2, 10, 20
       assert img\write out_path "composite.png"
 
+    it "modulate", ->
+      img2 = img\clone!
+      assert img\modulate 50, 50, 50
+      assert img\write out_path "modulate.png"
+
+    it "repage", ->
+      img2 = img\clone!
+      img2\crop 10, 10, 10, 10
+      img2\reset_page!
+
     it "should make clone", ->
       before_w, before_h = img\get_width!, img\get_height!
       cloned = img\clone!
