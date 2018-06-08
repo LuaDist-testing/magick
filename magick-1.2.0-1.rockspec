@@ -1,9 +1,18 @@
-package = "magick"
-version = "dev-1"
+-- This file was automatically generated for the LuaDist project.
 
+package = "magick"
+version = "1.2.0-1"
+
+-- LuaDist source
 source = {
-  url = "git://github.com/leafo/magick.git",
+  tag = "1.2.0-1",
+  url = "git://github.com/LuaDist-testing/magick.git"
 }
+-- Original source
+-- source = {
+--   url = "git://github.com/leafo/magick.git",
+--   branch = "v1.2.0"
+-- }
 
 description = {
   summary = "Lua bindings to ImageMagick & GraphicsMagick for LuaJIT using FFI",
