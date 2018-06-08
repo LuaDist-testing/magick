@@ -1,5 +1,7 @@
+local VERSION = "1.0.0"
 local ffi = require("ffi")
 ffi.cdef([[  typedef void MagickWand;
+  typedef void PixelWand;
 
   typedef int MagickBooleanType;
   typedef int ExceptionType;
@@ -57,6 +59,18 @@ ffi.cdef([[  typedef void MagickWand;
   MagickBooleanType MagickSetImageGravity(MagickWand *wand,
     const GravityType gravity);
 
+  MagickBooleanType MagickStripImage(MagickWand *wand);
+
+  MagickBooleanType MagickGetImagePixelColor(MagickWand *wand,
+    const ssize_t x,const ssize_t y,PixelWand *color);
+
+  PixelWand *NewPixelWand(void);
+  PixelWand *DestroyPixelWand(PixelWand *);
+
+  double PixelGetAlpha(const PixelWand *);
+  double PixelGetRed(const PixelWand *);
+  double PixelGetGreen(const PixelWand *);
+  double PixelGetBlue(const PixelWand *);
 ]])
 local get_flags
 get_flags = function()
@@ -311,6 +325,9 @@ do
       end
       return lib.MagickSetImageGravity(self.wand, type)
     end,
+    strip = function(self)
+      return lib.MagickStripImage(self.wand)
+    end,
     _keep_aspect = function(self, w, h)
       if not w and h then
         return self:get_width() / self:get_height() * h, h
@@ -371,6 +388,9 @@ do
       if opstr == nil then
         opstr = "OverCompositeOp"
       end
+      if type(blob) == "table" and blob.__class == Image then
+        blob = blob.wand
+      end
       local op = composite_op[opstr]
       if not (op) then
         error("invalid operator type")
@@ -422,6 +442,15 @@ do
         lib.DestroyMagickWand(self.wand)
       end
       self.wand = nil
+      if self.pixel_wand then
+        lib.DestroyPixelWand(self.pixel_wand)
+        self.pixel_wand = nil
+      end
+    end,
+    get_pixel = function(self, x, y)
+      self.pixel_wand = self.pixel_wand or lib.NewPixelWand()
+      assert(lib.MagickGetImagePixelColor(self.wand, x, y, self.pixel_wand), "failed to get pixel")
+      return lib.PixelGetRed(self.pixel_wand), lib.PixelGetGreen(self.pixel_wand), lib.PixelGetBlue(self.pixel_wand), lib.PixelGetAlpha(self.pixel_wand)
     end,
     __tostring = function(self)
       return "Image<" .. tostring(self.path) .. ", " .. tostring(self.wand) .. ">"
@@ -535,33 +564,11 @@ thumb = function(img, size_str, output)
   img:destroy()
   return ret
 end
-if ... == "test" then
-  local w, h = 500, 300
-  local D
-  D = function(t)
-    return print(table.concat((function()
-      local _accum_0 = { }
-      local _len_0 = 1
-      for k, v in pairs(t) do
-        _accum_0[_len_0] = tostring(k) .. ": " .. tostring(v)
-        _len_0 = _len_0 + 1
-      end
-      return _accum_0
-    end)(), ", "))
-  end
-  D(parse_size_str("10x10", w, h))
-  D(parse_size_str("50%x50%", w, h))
-  D(parse_size_str("50%x50%!", w, h))
-  D(parse_size_str("x10", w, h))
-  D(parse_size_str("10x%", w, h))
-  D(parse_size_str("10x10%#", w, h))
-  D(parse_size_str("200x300", w, h))
-  D(parse_size_str("200x300!", w, h))
-  D(parse_size_str("200x300+10+10", w, h))
-end
 return {
   load_image = load_image,
   load_image_from_blob = load_image_from_blob,
   thumb = thumb,
-  Image = Image
+  Image = Image,
+  parse_size_str = parse_size_str,
+  VERSION = VERSION
 }

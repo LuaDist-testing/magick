@@ -1,8 +1,11 @@
 
+VERSION = "1.0.0"
+
 ffi = require "ffi"
 
 ffi.cdef [[
   typedef void MagickWand;
+  typedef void PixelWand;
 
   typedef int MagickBooleanType;
   typedef int ExceptionType;
@@ -60,6 +63,18 @@ ffi.cdef [[
   MagickBooleanType MagickSetImageGravity(MagickWand *wand,
     const GravityType gravity);
 
+  MagickBooleanType MagickStripImage(MagickWand *wand);
+
+  MagickBooleanType MagickGetImagePixelColor(MagickWand *wand,
+    const ssize_t x,const ssize_t y,PixelWand *color);
+
+  PixelWand *NewPixelWand(void);
+  PixelWand *DestroyPixelWand(PixelWand *);
+
+  double PixelGetAlpha(const PixelWand *);
+  double PixelGetRed(const PixelWand *);
+  double PixelGetGreen(const PixelWand *);
+  double PixelGetBlue(const PixelWand *);
 ]]
 
 get_flags = ->
@@ -249,6 +264,7 @@ class Image
   get_option: (magick, key) =>
     format = magick .. ":" .. key
     ffi.string lib.MagickGetOption @wand, format
+
   set_option: (magick, key, value) =>
     format = magick .. ":" .. key
     handle_result @,
@@ -261,6 +277,9 @@ class Image
      type = gravity_type[typestr]
      error "invalid gravity type" unless type
      lib.MagickSetImageGravity @wand, type
+
+  strip: =>
+     lib.MagickStripImage @wand
 
   _keep_aspect: (w,h) =>
     if not w and h
@@ -304,6 +323,9 @@ class Image
       lib.MagickSharpenImage @wand, radius, sigma
 
   composite: (blob, x, y, opstr="OverCompositeOp") =>
+    if type(blob) == "table" and blob.__class == Image
+      blob = blob.wand
+
     op = composite_op[opstr]
     error "invalid operator type" unless op
     handle_result @,
@@ -352,6 +374,17 @@ class Image
   destroy: =>
     lib.DestroyMagickWand @wand if @wand
     @wand = nil
+
+    if @pixel_wand
+      lib.DestroyPixelWand @pixel_wand
+      @pixel_wand = nil
+
+  get_pixel: (x,y) =>
+    @pixel_wand or= lib.NewPixelWand!
+    assert lib.MagickGetImagePixelColor(@wand, x,y, @pixel_wand),
+      "failed to get pixel"
+
+    lib.PixelGetRed(@pixel_wand), lib.PixelGetGreen(@pixel_wand), lib.PixelGetBlue(@pixel_wand), lib.PixelGetAlpha(@pixel_wand)
 
   __tostring: =>
     "Image<#{@path}, #{@wand}>"
@@ -432,23 +465,5 @@ thumb = (img, size_str, output) ->
   img\destroy!
   ret
 
-if ... == "test"
-  w,h = 500,300
-  D = (t) -> print table.concat ["#{k}: #{v}" for k,v in pairs t], ", "
-
-  D parse_size_str "10x10", w,h
-
-  D parse_size_str "50%x50%", w,h
-  D parse_size_str "50%x50%!", w,h
-
-  D parse_size_str "x10", w,h
-  D parse_size_str "10x%", w,h
-  D parse_size_str "10x10%#", w,h
-
-  D parse_size_str "200x300", w,h
-  D parse_size_str "200x300!", w,h
-  D parse_size_str "200x300+10+10", w,h
-
-
-{ :load_image, :load_image_from_blob, :thumb, :Image }
+{ :load_image, :load_image_from_blob, :thumb, :Image, :parse_size_str, :VERSION }
 

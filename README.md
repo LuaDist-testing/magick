@@ -243,6 +243,16 @@ compose methods  include:
 	"DarkenIntensityCompositeOp"
 	"LightenIntensityCompositeOp"
 
+
+#### `img:strip()`
+
+strips image of all profiles and comments, useful for removing exif and other data
+
+
+#### `r,g,b,a = img:get_pixel(x, y)`
+
+Get the r,g,b,a color components of a pixel in the image as doubles from 0 to 1
+
 #### `img:clone()`
 
 returns a copy of the image
@@ -252,6 +262,15 @@ returns a copy of the image
 free the memory associated with image, it is invalid to use the image after
 calling this method
 
+# Tests
+
+Tests use [Busted](http://olivinelabs.com/busted). Install and execute the
+following command to run tests. You can check the output in
+`spec/output_images/`.
+
+```bash
+$ busted
+```
 
 # Contact
 
