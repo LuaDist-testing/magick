@@ -73,8 +73,7 @@ class Image extends require "magick.base_image"
      lib.MagickStripImage @wand
 
   clone: =>
-    wand = lib.NewMagickWand!
-    lib.MagickAddImage wand, @wand
+    wand = ffi.gc lib.CloneMagickWand(@wand), lib.DestroyMagickWand
     Image wand, @path
 
   coalesce: =>
@@ -104,6 +103,10 @@ class Image extends require "magick.base_image"
   blur: (sigma, radius=0) =>
     handle_result @,
       lib.MagickBlurImage @wand, radius, sigma
+
+  modulate: (brightness=100, saturation=100, hue=100) =>
+    handle_result @,
+      lib.MagickModulateImage @wand, brightness, saturation, hue
 
   sharpen: (sigma, radius=0) =>
     handle_result @,
@@ -194,6 +197,9 @@ class Image extends require "magick.base_image"
 
   auto_orient: =>
     handle_result @, lib.MagickAutoOrientImage @wand
+
+  reset_page: =>
+    handle_result @, lib.MagickResetImagePage @wand, nil
 
   __tostring: =>
     "Image<#{@path}, #{@wand}>"

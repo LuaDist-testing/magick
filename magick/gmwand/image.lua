@@ -29,6 +29,10 @@ do
     get_height = function(self)
       return tonumber(lib.MagickGetImageHeight(self.wand))
     end,
+    clone = function(self)
+      local wand = ffi.gc(lib.CloneMagickWand(self.wand), lib.DestroyMagickWand)
+      return Image(wand, self.path)
+    end,
     resize = function(self, w, h, filter, blur)
       if filter == nil then
         filter = "Lanczos"
@@ -53,8 +57,36 @@ do
       end
       return handle_result(self, lib.MagickCropImage(self.wand, w, h, x, y))
     end,
+    blur = function(self, sigma, radius)
+      if radius == nil then
+        radius = 0
+      end
+      return handle_result(self, lib.MagickBlurImage(self.wand, radius, sigma))
+    end,
+    modulate = function(self, brightness, saturation, hue)
+      if brightness == nil then
+        brightness = 100
+      end
+      if saturation == nil then
+        saturation = 100
+      end
+      if hue == nil then
+        hue = 100
+      end
+      return handle_result(self, lib.MagickModulateImage(self.wand, brightness, saturation, hue))
+    end,
     write = function(self, fname)
       return handle_result(self, lib.MagickWriteImage(self.wand, fname))
+    end,
+    composite = function(self, blob, x, y, op)
+      if op == nil then
+        op = "OverCompositeOp"
+      end
+      if type(blob) == "table" and blob.__class == Image then
+        blob = blob.wand
+      end
+      op = assert(data.composite_operators:to_int(op), "invalid operator type")
+      return handle_result(self, lib.MagickCompositeImage(self.wand, blob, op, x, y))
     end,
     get_blob = function(self)
       local len = ffi.new("size_t[1]", 0)

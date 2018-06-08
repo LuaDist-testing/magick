@@ -13,6 +13,7 @@ ffi.cdef([[  typedef void MagickWand;
 
   void MagickWandGenesis();
   MagickWand* NewMagickWand();
+  MagickWand* CloneMagickWand(const MagickWand *wand);
   MagickWand* DestroyMagickWand(MagickWand*);
   MagickBooleanType MagickReadImage(MagickWand*, const char*);
   MagickBooleanType MagickReadImageBlob(MagickWand*, const void*, const size_t);
@@ -36,6 +37,8 @@ ffi.cdef([[  typedef void MagickWand;
     const size_t, const size_t, const ssize_t, const ssize_t);
 
   MagickBooleanType MagickBlurImage(MagickWand*, const double, const double);
+  MagickBooleanType MagickModulateImage(MagickWand*, const double, const double, const double);
+  MagickBooleanType MagickBrightnessContrastImage(MagickWand*, const double, const double);
 
   MagickBooleanType MagickSetImageFormat(MagickWand* wand, const char* format);
   char* MagickGetImageFormat(MagickWand* wand);
@@ -105,6 +108,8 @@ ffi.cdef([[  typedef void MagickWand;
     const InterlaceType interlace_scheme);
 
   MagickBooleanType MagickAutoOrientImage(MagickWand *wand);
+
+  MagickBooleanType MagickResetImagePage(MagickWand *wand, const char *page);
 ]])
 local get_flags
 get_flags = function()

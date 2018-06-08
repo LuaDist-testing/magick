@@ -1,17 +1,17 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "magick"
-version = "1.2.1-1"
+version = "1.3.0-1"
 
 -- LuaDist source
 source = {
-  tag = "1.2.1-1",
+  tag = "1.3.0-1",
   url = "git://github.com/LuaDist-testing/magick.git"
 }
 -- Original source
 -- source = {
 --   url = "git://github.com/leafo/magick.git",
---   branch = "v1.2.1"
+--   branch = "v1.3.0"
 -- }
 
 description = {

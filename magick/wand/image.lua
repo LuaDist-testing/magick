@@ -77,8 +77,7 @@ do
       return lib.MagickStripImage(self.wand)
     end,
     clone = function(self)
-      local wand = lib.NewMagickWand()
-      lib.MagickAddImage(wand, self.wand)
+      local wand = ffi.gc(lib.CloneMagickWand(self.wand), lib.DestroyMagickWand)
       return Image(wand, self.path)
     end,
     coalesce = function(self)
@@ -120,6 +119,18 @@ do
         radius = 0
       end
       return handle_result(self, lib.MagickBlurImage(self.wand, radius, sigma))
+    end,
+    modulate = function(self, brightness, saturation, hue)
+      if brightness == nil then
+        brightness = 100
+      end
+      if saturation == nil then
+        saturation = 100
+      end
+      if hue == nil then
+        hue = 100
+      end
+      return handle_result(self, lib.MagickModulateImage(self.wand, brightness, saturation, hue))
     end,
     sharpen = function(self, sigma, radius)
       if radius == nil then
@@ -223,6 +234,9 @@ do
     end,
     auto_orient = function(self)
       return handle_result(self, lib.MagickAutoOrientImage(self.wand))
+    end,
+    reset_page = function(self)
+      return handle_result(self, lib.MagickResetImagePage(self.wand, nil))
     end,
     __tostring = function(self)
       return "Image<" .. tostring(self.path) .. ", " .. tostring(self.wand) .. ">"
