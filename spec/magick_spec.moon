@@ -32,60 +32,62 @@ describe "magick", ->
     before_each ->
       img = assert load_image "spec/test_image.png"
 
-    after_each ->
+    it "destroy", ->
       img\destroy!
-      img = nil
 
     it "icon", ->
-      img\resize 16, 16
-      img\write out_path "icon.ico"
+      assert img\resize 16, 16
+      assert img\write out_path "icon.ico"
 
     it "resize", ->
-      img\resize nil, 80
-      img\write out_path "resize.png"
+      assert img\resize nil, 80
+      assert img\write out_path "resize.png"
+
+    it "with exception", ->
+      assert.has_error ->
+        assert img\set_format "butt"
 
     it "resize_and_crop", ->
-      img\resize_and_crop 500,1000
-      img\write out_path "resize_and_crop.png"
+      assert img\resize_and_crop 500,1000
+      assert img\write out_path "resize_and_crop.png"
 
     it "blur", ->
-      img\blur 3, 10
-      img\write out_path "blur.png"
+      assert img\blur 3, 10
+      assert img\write out_path "blur.png"
+
+    it "rotate", ->
+      assert img\rotate 45
+      assert img\write out_path "rotate.png"
 
     it "quality", ->
-      img\set_quality 50
+      assert img\set_quality 50
       assert.same 50, img\get_quality!
-      img\write out_path "quality.jpg"
+      assert img\write out_path "quality.jpg"
 
     it "sharpen", ->
-      img\sharpen 1
-      img\write out_path "sharpen.png"
+      assert img\sharpen 1
+      assert img\write out_path "sharpen.png"
 
     it "scale", ->
-      img\scale 80
-      img\write out_path "scale.png"
+      assert img\scale 80
+      assert img\write out_path "scale.png"
 
     it "composite", ->
       img2 = img\clone!
-      img2\resize 32
-
+      assert img2\resize 32
       assert img\composite img2, 10, 20
-
-      img\write out_path "composite.png"
-      img2\destroy!
+      assert img\write out_path "composite.png"
 
     it "should make clone", ->
       before_w, before_h = img\get_width!, img\get_height!
       cloned = img\clone!
-      cloned\resize 50, 20
+      assert cloned\resize 50, 20
 
       assert.same before_w, img\get_width!
       assert.same before_h, img\get_height!
 
       assert.same 50, cloned\get_width!
       assert.same 20, cloned\get_height!
-
-      cloned\destroy!
 
     it "should return blob", ->
       blob = img\get_blob!
@@ -94,18 +96,16 @@ describe "magick", ->
       assert.same img\get_width!, blob_img\get_width!
       assert.same img\get_height!, blob_img\get_height!
 
-      blob_img\destroy!
-
     it "should set format", ->
-      img\set_format "bmp"
+      assert img\set_format "bmp"
       assert.same "bmp", img\get_format!
 
     it "should set gravity", ->
-      img\set_gravity "SouthEastGravity"
+      assert img\set_gravity "SouthEastGravity"
       assert.same "SouthEastGravity", img\get_gravity!
 
     it "should set option", ->
-      img\set_option "webp", "lossless", "0"
+      assert img\set_option "webp", "lossless", "0"
       assert.same "0", img\get_option "webp", "lossless"
 
   describe "color_image", ->
@@ -114,10 +114,6 @@ describe "magick", ->
 
     before_each ->
       img = assert load_image "spec/color_test.png"
-
-    after_each ->
-      img\destroy!
-      img = nil
 
     it "should get colors of pixels", ->
       local r,g,b,a
@@ -160,3 +156,14 @@ describe "magick", ->
         thumb "spec/test_image.png", size,
           "spec/output_images/thumb_#{i}.png"
 
+  describe "gif image", ->
+    import load_image, load_image_from_blob from magick
+    out_path = (fname) -> "spec/output_images/#{fname}"
+
+    local img
+    before_each ->
+      img = assert load_image "spec/test.gif"
+
+    it "coalesce", ->
+      assert img\coalesce!
+      assert img\write out_path "coalesce.gif"

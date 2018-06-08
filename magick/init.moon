@@ -1,5 +1,5 @@
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 ffi = require "ffi"
 
@@ -19,7 +19,7 @@ ffi.cdef [[
   MagickBooleanType MagickReadImage(MagickWand*, const char*);
   MagickBooleanType MagickReadImageBlob(MagickWand*, const void*, const size_t);
 
-  const char* MagickGetException(const MagickWand*, ExceptionType*);
+  char* MagickGetException(const MagickWand*, ExceptionType*);
 
   int MagickGetImageWidth(MagickWand*);
   int MagickGetImageHeight(MagickWand*);
@@ -40,7 +40,7 @@ ffi.cdef [[
   MagickBooleanType MagickBlurImage(MagickWand*, const double, const double);
 
   MagickBooleanType MagickSetImageFormat(MagickWand* wand, const char* format);
-  const char* MagickGetImageFormat(MagickWand* wand);
+  char* MagickGetImageFormat(MagickWand* wand);
 
   size_t MagickGetImageCompressionQuality(MagickWand * wand);
   MagickBooleanType MagickSetImageCompressionQuality(MagickWand *wand,
@@ -51,6 +51,9 @@ ffi.cdef [[
 
   MagickBooleanType MagickScaleImage(MagickWand *wand,
     const size_t columns,const size_t rows);
+
+  MagickBooleanType MagickRotateImage(MagickWand *wand,
+  const PixelWand *background,const double degrees);
 
   MagickBooleanType MagickSetOption(MagickWand *,const char *,const char *);
   char* MagickGetOption(MagickWand *,const char *);
@@ -68,6 +71,8 @@ ffi.cdef [[
   MagickBooleanType MagickGetImagePixelColor(MagickWand *wand,
     const ssize_t x,const ssize_t y,PixelWand *color);
 
+  MagickWand* MagickCoalesceImages(MagickWand*);
+
   PixelWand *NewPixelWand(void);
   PixelWand *DestroyPixelWand(PixelWand *);
 
@@ -75,10 +80,15 @@ ffi.cdef [[
   double PixelGetRed(const PixelWand *);
   double PixelGetGreen(const PixelWand *);
   double PixelGetBlue(const PixelWand *);
+
+  void PixelSetAlpha(PixelWand *wand, const double alpha);
+  void PixelSetRed(PixelWand *wand, const double red);
+  void PixelSetGreen(PixelWand *wand, const double green);
+  void PixelSetBlue(PixelWand *wand, const double blue);
 ]]
 
 get_flags = ->
-  proc = io.popen "MagickWand-config --cflags --libs", "r"
+  proc = io.popen "pkg-config --cflags --libs MagickWand", "r"
   flags = proc\read "*a"
   get_flags = -> flags
   proc\close!
@@ -89,14 +99,10 @@ get_filters = ->
   prefixes = {
     "/usr/include/ImageMagick"
     "/usr/local/include/ImageMagick"
-    -> get_flags!\match("-I([^%s]+)")
+    unpack [p for p in get_flags!\gmatch "-I([^%s]+)"]
   }
 
   for p in *prefixes
-    if "function" == type p
-      p = p!
-      continue unless p
-
     full = "#{p}/#{fname}"
     if f = io.open full
       content = with f\read "*a" do f\close!
@@ -211,17 +217,17 @@ composite_op = {
 }
 
 gravity_str = {
-   "ForgetGravity",
-   "NorthWestGravity",
-   "NorthGravity",
-   "NorthEastGravity",
-   "WestGravity",
-   "CenterGravity",
-   "EastGravity",
-   "SouthWestGravity",
-   "SouthGravity",
-   "SouthEastGravity",
-   "StaticGravity"
+  "ForgetGravity",
+  "NorthWestGravity",
+  "NorthGravity",
+  "NorthEastGravity",
+  "WestGravity",
+  "CenterGravity",
+  "EastGravity",
+  "SouthWestGravity",
+  "SouthGravity",
+  "SouthEastGravity",
+  "StaticGravity"
 }
 
 gravity_type = {}
@@ -236,7 +242,7 @@ filter = (name) -> lib[name .. "Filter"]
 
 get_exception = (wand) ->
   etype = ffi.new "ExceptionType[1]", 0
-  msg = ffi.string lib.MagickGetException wand, etype
+  msg = ffi.string ffi.gc lib.MagickGetException(wand, etype), lib.MagickRelinquishMemory
   etype[0], msg
 
 handle_result = (img_or_wand, status) ->
@@ -249,9 +255,14 @@ handle_result = (img_or_wand, status) ->
 
 class Image
   new: (@wand, @path) =>
+
   get_width: => lib.MagickGetImageWidth @wand
   get_height: => lib.MagickGetImageHeight @wand
-  get_format: => ffi.string(lib.MagickGetImageFormat @wand)\lower!
+  get_format: =>
+    format = lib.MagickGetImageFormat(@wand)
+    with ffi.string(format)\lower!
+      lib.MagickRelinquishMemory format
+
   set_format: (format) =>
     handle_result @,
       lib.MagickSetImageFormat @wand, format
@@ -263,7 +274,9 @@ class Image
 
   get_option: (magick, key) =>
     format = magick .. ":" .. key
-    ffi.string lib.MagickGetOption @wand, format
+    option_str = lib.MagickGetOption(@wand, format)
+    with ffi.string option_str
+      lib.MagickRelinquishMemory option_str
 
   set_option: (magick, key, value) =>
     format = magick .. ":" .. key
@@ -294,6 +307,10 @@ class Image
     lib.MagickAddImage wand, @wand
     Image wand, @path
 
+  coalesce: =>
+    @wand = ffi.gc lib.MagickCoalesceImages(@wand), ffi.DestroyMagickWand
+    true
+
   resize: (w,h, f="Lanczos2", blur=1.0) =>
     error "Failed to load filter list, can't resize" unless can_resize
     w, h = @_keep_aspect w,h
@@ -321,6 +338,16 @@ class Image
   sharpen: (sigma, radius=0) =>
     handle_result @,
       lib.MagickSharpenImage @wand, radius, sigma
+
+  rotate: (degrees, r=0, g=0, b=0) =>
+    pixel = ffi.gc lib.NewPixelWand!, lib.DestroyPixelWand
+
+    lib.PixelSetRed pixel, r
+    lib.PixelSetGreen pixel, g
+    lib.PixelSetBlue pixel, b
+
+    res = { handle_result @, lib.MagickRotateImage @wand, pixel, degrees }
+    unpack res
 
   composite: (blob, x, y, opstr="OverCompositeOp") =>
     if type(blob) == "table" and blob.__class == Image
@@ -364,23 +391,25 @@ class Image
 
   get_blob: =>
     len = ffi.new "size_t[1]", 0
-    blob = lib.MagickGetImageBlob @wand, len
-    with ffi.string blob, len[0]
-      lib.MagickRelinquishMemory blob
+    blob = ffi.gc lib.MagickGetImageBlob(@wand, len),
+      lib.MagickRelinquishMemory
+
+    ffi.string blob, len[0]
 
   write: (fname) =>
     handle_result @, lib.MagickWriteImage @wand, fname
 
   destroy: =>
-    lib.DestroyMagickWand @wand if @wand
-    @wand = nil
+    if @wand
+      lib.DestroyMagickWand ffi.gc @wand, nil
+      @wand = nil
 
     if @pixel_wand
-      lib.DestroyPixelWand @pixel_wand
+      lib.DestroyPixelWand ffi.gc @pixel_wand, nil
       @pixel_wand = nil
 
   get_pixel: (x,y) =>
-    @pixel_wand or= lib.NewPixelWand!
+    @pixel_wand or= ffi.gc lib.NewPixelWand!, lib.DestroyPixelWand
     assert lib.MagickGetImagePixelColor(@wand, x,y, @pixel_wand),
       "failed to get pixel"
 
@@ -390,19 +419,17 @@ class Image
     "Image<#{@path}, #{@wand}>"
 
 load_image = (path) ->
-  wand = lib.NewMagickWand!
+  wand = ffi.gc lib.NewMagickWand!, lib.DestroyMagickWand
   if 0 == lib.MagickReadImage wand, path
     code, msg = get_exception wand
-    lib.DestroyMagickWand wand
     return nil, msg, code
 
   Image wand, path
 
 load_image_from_blob = (blob) ->
-  wand = lib.NewMagickWand!
+  wand = ffi.gc lib.NewMagickWand!, lib.DestroyMagickWand
   if 0 == lib.MagickReadImageBlob wand, blob, #blob
     code, msg = get_exception wand
-    lib.DestroyMagickWand wand
     return nil, msg, code
 
   Image wand, "<from_blob>"
@@ -462,7 +489,6 @@ thumb = (img, size_str, output) ->
   else
     img\get_blob!
 
-  img\destroy!
   ret
 
 { :load_image, :load_image_from_blob, :thumb, :Image, :parse_size_str, :VERSION }

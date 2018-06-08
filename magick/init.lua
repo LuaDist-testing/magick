@@ -1,4 +1,4 @@
-local VERSION = "1.0.0"
+local VERSION = "1.1.0"
 local ffi = require("ffi")
 ffi.cdef([[  typedef void MagickWand;
   typedef void PixelWand;
@@ -15,7 +15,7 @@ ffi.cdef([[  typedef void MagickWand;
   MagickBooleanType MagickReadImage(MagickWand*, const char*);
   MagickBooleanType MagickReadImageBlob(MagickWand*, const void*, const size_t);
 
-  const char* MagickGetException(const MagickWand*, ExceptionType*);
+  char* MagickGetException(const MagickWand*, ExceptionType*);
 
   int MagickGetImageWidth(MagickWand*);
   int MagickGetImageHeight(MagickWand*);
@@ -36,7 +36,7 @@ ffi.cdef([[  typedef void MagickWand;
   MagickBooleanType MagickBlurImage(MagickWand*, const double, const double);
 
   MagickBooleanType MagickSetImageFormat(MagickWand* wand, const char* format);
-  const char* MagickGetImageFormat(MagickWand* wand);
+  char* MagickGetImageFormat(MagickWand* wand);
 
   size_t MagickGetImageCompressionQuality(MagickWand * wand);
   MagickBooleanType MagickSetImageCompressionQuality(MagickWand *wand,
@@ -47,6 +47,9 @@ ffi.cdef([[  typedef void MagickWand;
 
   MagickBooleanType MagickScaleImage(MagickWand *wand,
     const size_t columns,const size_t rows);
+
+  MagickBooleanType MagickRotateImage(MagickWand *wand,
+  const PixelWand *background,const double degrees);
 
   MagickBooleanType MagickSetOption(MagickWand *,const char *,const char *);
   char* MagickGetOption(MagickWand *,const char *);
@@ -64,6 +67,8 @@ ffi.cdef([[  typedef void MagickWand;
   MagickBooleanType MagickGetImagePixelColor(MagickWand *wand,
     const ssize_t x,const ssize_t y,PixelWand *color);
 
+  MagickWand* MagickCoalesceImages(MagickWand*);
+
   PixelWand *NewPixelWand(void);
   PixelWand *DestroyPixelWand(PixelWand *);
 
@@ -71,10 +76,15 @@ ffi.cdef([[  typedef void MagickWand;
   double PixelGetRed(const PixelWand *);
   double PixelGetGreen(const PixelWand *);
   double PixelGetBlue(const PixelWand *);
+
+  void PixelSetAlpha(PixelWand *wand, const double alpha);
+  void PixelSetRed(PixelWand *wand, const double red);
+  void PixelSetGreen(PixelWand *wand, const double green);
+  void PixelSetBlue(PixelWand *wand, const double blue);
 ]])
 local get_flags
 get_flags = function()
-  local proc = io.popen("MagickWand-config --cflags --libs", "r")
+  local proc = io.popen("pkg-config --cflags --libs MagickWand", "r")
   local flags = proc:read("*a")
   get_flags = function()
     return flags
@@ -88,42 +98,34 @@ get_filters = function()
   local prefixes = {
     "/usr/include/ImageMagick",
     "/usr/local/include/ImageMagick",
-    function()
-      return get_flags():match("-I([^%s]+)")
-    end
+    unpack((function()
+      local _accum_0 = { }
+      local _len_0 = 1
+      for p in get_flags():gmatch("-I([^%s]+)") do
+        _accum_0[_len_0] = p
+        _len_0 = _len_0 + 1
+      end
+      return _accum_0
+    end)())
   }
   for _index_0 = 1, #prefixes do
-    local _continue_0 = false
-    repeat
-      local p = prefixes[_index_0]
-      if "function" == type(p) then
-        p = p()
-        if not (p) then
-          _continue_0 = true
-          break
+    local p = prefixes[_index_0]
+    local full = tostring(p) .. "/" .. tostring(fname)
+    do
+      local f = io.open(full)
+      if f then
+        local content
+        do
+          local _with_0 = f:read("*a")
+          f:close()
+          content = _with_0
+        end
+        local filter_types = content:match("(typedef enum.-FilterTypes;)")
+        if filter_types then
+          ffi.cdef(filter_types)
+          return true
         end
       end
-      local full = tostring(p) .. "/" .. tostring(fname)
-      do
-        local f = io.open(full)
-        if f then
-          local content
-          do
-            local _with_0 = f:read("*a")
-            f:close()
-            content = _with_0
-          end
-          local filter_types = content:match("(typedef enum.-FilterTypes;)")
-          if filter_types then
-            ffi.cdef(filter_types)
-            return true
-          end
-        end
-      end
-      _continue_0 = true
-    until true
-    if not _continue_0 then
-      break
     end
   end
   return false
@@ -273,7 +275,7 @@ end
 local get_exception
 get_exception = function(wand)
   local etype = ffi.new("ExceptionType[1]", 0)
-  local msg = ffi.string(lib.MagickGetException(wand, etype))
+  local msg = ffi.string(ffi.gc(lib.MagickGetException(wand, etype), lib.MagickRelinquishMemory))
   return etype[0], msg
 end
 local handle_result
@@ -296,7 +298,12 @@ do
       return lib.MagickGetImageHeight(self.wand)
     end,
     get_format = function(self)
-      return ffi.string(lib.MagickGetImageFormat(self.wand)):lower()
+      local format = lib.MagickGetImageFormat(self.wand)
+      do
+        local _with_0 = ffi.string(format):lower()
+        lib.MagickRelinquishMemory(format)
+        return _with_0
+      end
     end,
     set_format = function(self, format)
       return handle_result(self, lib.MagickSetImageFormat(self.wand, format))
@@ -309,7 +316,12 @@ do
     end,
     get_option = function(self, magick, key)
       local format = magick .. ":" .. key
-      return ffi.string(lib.MagickGetOption(self.wand, format))
+      local option_str = lib.MagickGetOption(self.wand, format)
+      do
+        local _with_0 = ffi.string(option_str)
+        lib.MagickRelinquishMemory(option_str)
+        return _with_0
+      end
     end,
     set_option = function(self, magick, key, value)
       local format = magick .. ":" .. key
@@ -341,6 +353,10 @@ do
       local wand = lib.NewMagickWand()
       lib.MagickAddImage(wand, self.wand)
       return Image(wand, self.path)
+    end,
+    coalesce = function(self)
+      self.wand = ffi.gc(lib.MagickCoalesceImages(self.wand), ffi.DestroyMagickWand)
+      return true
     end,
     resize = function(self, w, h, f, blur)
       if f == nil then
@@ -383,6 +399,25 @@ do
         radius = 0
       end
       return handle_result(self, lib.MagickSharpenImage(self.wand, radius, sigma))
+    end,
+    rotate = function(self, degrees, r, g, b)
+      if r == nil then
+        r = 0
+      end
+      if g == nil then
+        g = 0
+      end
+      if b == nil then
+        b = 0
+      end
+      local pixel = ffi.gc(lib.NewPixelWand(), lib.DestroyPixelWand)
+      lib.PixelSetRed(pixel, r)
+      lib.PixelSetGreen(pixel, g)
+      lib.PixelSetBlue(pixel, b)
+      local res = {
+        handle_result(self, lib.MagickRotateImage(self.wand, pixel, degrees))
+      }
+      return unpack(res)
     end,
     composite = function(self, blob, x, y, opstr)
       if opstr == nil then
@@ -427,28 +462,24 @@ do
     end,
     get_blob = function(self)
       local len = ffi.new("size_t[1]", 0)
-      local blob = lib.MagickGetImageBlob(self.wand, len)
-      do
-        local _with_0 = ffi.string(blob, len[0])
-        lib.MagickRelinquishMemory(blob)
-        return _with_0
-      end
+      local blob = ffi.gc(lib.MagickGetImageBlob(self.wand, len), lib.MagickRelinquishMemory)
+      return ffi.string(blob, len[0])
     end,
     write = function(self, fname)
       return handle_result(self, lib.MagickWriteImage(self.wand, fname))
     end,
     destroy = function(self)
       if self.wand then
-        lib.DestroyMagickWand(self.wand)
+        lib.DestroyMagickWand(ffi.gc(self.wand, nil))
+        self.wand = nil
       end
-      self.wand = nil
       if self.pixel_wand then
-        lib.DestroyPixelWand(self.pixel_wand)
+        lib.DestroyPixelWand(ffi.gc(self.pixel_wand, nil))
         self.pixel_wand = nil
       end
     end,
     get_pixel = function(self, x, y)
-      self.pixel_wand = self.pixel_wand or lib.NewPixelWand()
+      self.pixel_wand = self.pixel_wand or ffi.gc(lib.NewPixelWand(), lib.DestroyPixelWand)
       assert(lib.MagickGetImagePixelColor(self.wand, x, y, self.pixel_wand), "failed to get pixel")
       return lib.PixelGetRed(self.pixel_wand), lib.PixelGetGreen(self.pixel_wand), lib.PixelGetBlue(self.pixel_wand), lib.PixelGetAlpha(self.pixel_wand)
     end,
@@ -476,20 +507,18 @@ do
 end
 local load_image
 load_image = function(path)
-  local wand = lib.NewMagickWand()
+  local wand = ffi.gc(lib.NewMagickWand(), lib.DestroyMagickWand)
   if 0 == lib.MagickReadImage(wand, path) then
     local code, msg = get_exception(wand)
-    lib.DestroyMagickWand(wand)
     return nil, msg, code
   end
   return Image(wand, path)
 end
 local load_image_from_blob
 load_image_from_blob = function(blob)
-  local wand = lib.NewMagickWand()
+  local wand = ffi.gc(lib.NewMagickWand(), lib.DestroyMagickWand)
   if 0 == lib.MagickReadImageBlob(wand, blob, #blob) then
     local code, msg = get_exception(wand)
-    lib.DestroyMagickWand(wand)
     return nil, msg, code
   end
   return Image(wand, "<from_blob>")
@@ -561,7 +590,6 @@ thumb = function(img, size_str, output)
   else
     ret = img:get_blob()
   end
-  img:destroy()
   return ret
 end
 return {

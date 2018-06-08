@@ -1,34 +1,32 @@
 # magick
-#### Version 0.1.0
 
-Lua bindings to ImageMagick for LuaJIT using FFI
+[![Build Status](https://travis-ci.org/leafo/magick.svg?branch=master)](https://travis-ci.org/leafo/magick)
 
-## Functions
+Lua bindings to ImageMagick's [MagicWand](http://www.imagemagick.org/script/magick-wand.php) for LuaJIT using FFI.
 
-All functions contained in the table returned by `require "magick"`.
+## Installation
 
-#### `thumb(input_fname, size_str, out_fname=nil)`
+You'll need both LuaJIT (any version) and MagickWand installed. On Ubuntu you might run:
 
-Loads and resizes image. Write output to `out_fname` if provided, otherwise
-return image blob. (`input_fname` can optionally be an instance of `Image`,
-will get automatically destroyed)
+```bash
+$ sudo apt-get install luajit
+$ sudo apt-get install libmagickwand-dev
+```
 
-#### `load_image(fname)`
+It's recommended to use LuaRocks to install **magick**.
 
-Return a new `Image` instance, loaded from filename. Returns `nil` and error
-message if image could not be loaded.
-
-#### `load_image_from_blob(blob)`
-
-Loads an image from a Lua string containing the binary image data.
+```bash
+$ sudo apt-get install luarocks
+$ luarocks install magick
+```
 
 ## Basic Usage
 
-If you just need to resize an image, use the `thumb` function. It can handle a
-variety of resize operations and will clean up the image afterwards.
+If you just need to resize/crop an image, use the `thumb` function. It provides
+a shorthand syntax for common operations.
 
 ```lua
-local magick = require "magick"
+local magick = require("magick")
 magick.thumb("input.png", "100x100", "output.png")
 ```
 
@@ -52,11 +50,27 @@ kinds of values:
 If you need more advanced image operations, you'll need to work with the
 `Image` object. Read on.
 
+## Functions
+
+All functions contained in the table returned by `require("magick")`.
+
+#### `thumb(input_fname, size_str, out_fname=nil)`
+
+Loads and resizes image. Write output to `out_fname` if provided, otherwise
+return image blob. (`input_fname` can optionally be an instance of `Image`)
+
+#### `load_image(fname)`
+
+Return a new `Image` instance, loaded from filename. Returns `nil` and error
+message if image could not be loaded.
+
+#### `load_image_from_blob(blob)`
+
+Loads an image from a Lua string containing the binary image data.
+
 ## `Image` object
 
-Calling `load_image` or `load_image_from_blob` returns an `Image` object. Make
-sure to call `destroy` to delete the image in long running programs or there
-will be a memory leak.
+Calling `load_image` or `load_image_from_blob` returns an `Image` object.
 
 
 ```lua
@@ -68,8 +82,9 @@ print("width:", img:get_width(), "height:", img:get_height());
 
 img:resize(200, 200)
 img:write("resized.png")
-img:destroy()
 ```
+
+Images are automatically freed from memory by LuaJIT's garbage collector.
 
 ### Methods
 
@@ -78,70 +93,80 @@ independent copy.
 
 #### `img:resize(w,h, f="Lanczos2", blur=1.0)`
 
-resize the image, `f` is resize function, see [Filer Types](http://www.imagemagick.org/api/MagickCore/resample_8h.html#a12be80da7313b1cc5a7e1061c0c108ea)
+Resizes the image, `f` is resize function, see [Filer Types](http://www.imagemagick.org/api/MagickCore/resample_8h.html#a12be80da7313b1cc5a7e1061c0c108ea)
 
 #### `img:adaptive_resize(w,h)`
 
-resize the image using [adaptive
-resize](http://imagemagick.org/Usage/resize/#adaptive-resize)
+Resizes the image using [adaptive resize](http://imagemagick.org/Usage/resize/#adaptive-resize)
 
 #### `img:crop(w,h, x=0, y=0)`
 
-crop image to `w`,`h` where the top left is `x`, `y`
+Crops image to `w`,`h` where the top left is `x`, `y`
 
 #### `img:blur(sigma, radius=0)`
 
-blur image
+Blurs the image with specified paramaters. See [Blur Arguments](http://www.imagemagick.org/Usage/blur/#blur_args)
+
+#### `img:rotate(degrees, r=0, g=0, b)`
+
+Rotates the image by specified number of degrees. The image dimensions will
+enlarge to prevent cropping. The triangles on the corners are filled with the
+color specified by `r`, `g`, `b`. The color components are specified as
+floating point numbers from 0 to 1.
 
 #### `img:sharpen(sigma, radius=0)`
 
-sharpen image
+Sharpens the image with specified parameters. See [Sharpening Images](http://www.imagemagick.org/Usage/blur/#sharpen)
 
 #### `img:resize_and_crop(w,h)`
 
-resize the image to `w`,`h`, but crop if necessary to maintain aspect ratio
+Resizes the image to `w`,`h`. The image will be cropped if necessary to
+maintain its aspect ratio.
 
 #### `img:get_blob()`
 
-returns Lua string containing the binary data of the image
+Returns Lua string containing the binary data of the image. The blob is
+formatated the same as the image's current format (eg. PNG, Gif, etc.). Use
+`image:set_format` to change the format.
 
 #### `img:write(fname)`
 
-writes the contents of the image
+Writes the the image to disk
 
 #### `img:get_width()`
 
-get width of image
+Gets the width of the image
 
 #### `img:get_height()`
 
-get height of image
+Gets the height of the image
 
 #### `img:get_format()`
 
-get the current format of image
+Gets the current format of image as a file extension like `"png"` or `"bmp"`.
+Use `image:set_format` to change the format.
 
 #### `img:set_format(format)`
 
-set the format of the image, takes a file extension like `"png"` or `"bmp"`
+Sets the format of the image, takes a file extension like `"png"` or `"bmp"`
 
 #### `img:get_quality()`
 
-get the image compression quality.
+Gets the image compression quality.
 
 #### `img:set_quality(quality)`
 
-set the image compression quality.
+Sets the image compression quality.
 
-#### `img:get_gravity(quality)`
+#### `img:get_gravity()`
 
-get the image gravity type.
+Gets the image gravity type.
 
-#### `img:set_gravity(quality)`
+#### `img:set_gravity(gravity)`
 
-set the image gravity type.
+Sets the image's gravity type:
 
-gravity type include:
+`gravity` can be one of:
 
 	"ForgetGravity",
 	"NorthWestGravity",
@@ -158,22 +183,27 @@ gravity type include:
 
 #### `img:get_option(magick, key)`
 
-returns all the option names that match the specified pattern associated with a image
-(.e.g img:get_option("webp", "lossless") )
+Returns all the option names that match the specified pattern associated with a
+image (e.g `img:get_option("webp", "lossless")`)
 
 #### `img:set_option(magick, key, value)`
 
-associates one or options with the img (.e.g img:set_option("webp", "lossless", "0") )
+Associates one or options with the img (e.g `img:set_option("webp", "lossless", "0")`)
 
 #### `img:scale(w, h)`
 
-scale the size of an image to the given dimensions.
+Scale the size of an image to the given dimensions.
 
-#### `img:composite(source, compose, x, y)`
+#### `img:coalesce()`
 
-composite one image onto another at the specified offset.
+Coalesces the current image by compositing each frame on the previous frame.
+This un-optimized animated images to make them suitable for other methods.
 
-compose methods  include:
+#### `img:composite(source, x, y, compose)`
+
+Composite another image onto another at the specified offset `x`, `y`.
+
+`compose` can be one of:
 
 	"NoCompositeOp"
 	"ModulusAddCompositeOp"
@@ -246,21 +276,21 @@ compose methods  include:
 
 #### `img:strip()`
 
-strips image of all profiles and comments, useful for removing exif and other data
-
+Strips image of all profiles and comments, useful for removing exif and other data
 
 #### `r,g,b,a = img:get_pixel(x, y)`
 
-Get the r,g,b,a color components of a pixel in the image as doubles from 0 to 1
+Get the r,g,b,a color components of a pixel in the image as doubles from `0` to `1`
 
 #### `img:clone()`
 
-returns a copy of the image
+Returns a copy of the image.
 
 #### `img:destroy()`
 
-free the memory associated with image, it is invalid to use the image after
-calling this method
+Immediately frees the memory associated with the image, it is invalid to use the
+image after calling this method. It is unecessary to call this method normally
+as images are tracked by the garbage collector.
 
 # Tests
 
@@ -271,6 +301,16 @@ following command to run tests. You can check the output in
 ```bash
 $ busted
 ```
+
+# Changelog
+
+### 1.1.0 - Thu Oct 22 05:11:41 UTC 2015
+
+* add automatic memory management with `ffi.gc`
+* fix some string memory leaks when getting type and options of image
+* add `coalesce`, `rotate` methods to image
+* use `pkg-config` instead of `MagickWand-config` to query library
+* all include paths provided by config are searched instead of first
 
 # Contact
 
